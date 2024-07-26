@@ -1,25 +1,36 @@
 package server
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/hunterros-s/algernon/config"
 	packets "github.com/hunterros-s/algernon/server/network/packet"
 	"github.com/hunterros-s/algernon/server/network/tcpserver"
 )
 
 type Server struct {
-	config     *config.ServerConfig
-	tcp_server *tcpserver.TCPServer
+	config    *config.ServerConfig
+	tcpServer *tcpserver.TCPServer
 }
 
-func (svr *Server) Start() {
-	svr.tcp_server.Start()
+func (svr *Server) Start(context context.Context) {
+	svr.tcpServer.Start(context)
 }
 
-func NewServer(cfg *config.ServerConfig) *Server {
-	tcp_server := tcpserver.NewTCPServer(cfg, packets.NewPacketHandler())
+func (svr *Server) Stop() {
+	svr.config.Logger.Info().Msg("Shutting down server...")
+	svr.tcpServer.Stop()
+}
+
+func NewServer(cfg *config.ServerConfig) (*Server, error) {
+	tcpServer, err := tcpserver.NewTCPServer(cfg, packets.NewPacketHandler())
+	if err != nil {
+		return nil, fmt.Errorf("error creating tcp server:%v", err.Error())
+	}
 
 	return &Server{
-		config:     cfg,
-		tcp_server: tcp_server,
-	}
+		config:    cfg,
+		tcpServer: tcpServer,
+	}, nil
 }

@@ -3,6 +3,7 @@ package codec
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -10,65 +11,73 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/hunterros-s/algernon/text"
 )
 
-func DecodeBool(buf *bytes.Buffer) (bool, error) {
+// https://wiki.vg/Protocol#Type:Boolean
+func ReadBool(buf *bytes.Buffer) (bool, error) {
 	if buf.Len() == 0 {
-		return false, errors.New("buffer is empty")
+		return false, errors.New("buffer has insufficient data to read bool")
 	}
 
 	b := buf.Next(1)[0]
 	return b != 0, nil
 }
 
-func DecodeByte(buf *bytes.Buffer) (int8, error) {
+// https://wiki.vg/Protocol#Type:Byte
+func ReadByte(buf *bytes.Buffer) (int8, error) {
 	if buf.Len() == 0 {
-		return 0, errors.New("buffer is empty")
+		return 0, errors.New("buffer has insufficient data to read byte")
 	}
 
 	b := buf.Next(1)[0]
 	return int8(b), nil
 }
 
-func DecodeUbyte(buf *bytes.Buffer) (byte, error) {
+// https://wiki.vg/Protocol#Type:Unsigned_Byte
+func ReadUbyte(buf *bytes.Buffer) (byte, error) {
 	if buf.Len() == 0 {
-		return 0, errors.New("buffer is empty")
+		return 0, errors.New("buffer has insufficient data to read ubyte")
 	}
 
 	b := buf.Next(1)[0]
 	return b, nil
 }
 
-func DecodeShort(buf *bytes.Buffer) (int16, error) {
+// https://wiki.vg/Protocol#Type:Short
+func ReadShort(buf *bytes.Buffer) (int16, error) {
 	if buf.Len() < 2 {
-		return 0, errors.New("buffer has insufficient data")
+		return 0, errors.New("buffer has insufficient data to read short")
 	}
 
 	d := buf.Next(2)
 	return int16(d[0])<<8 | int16(d[1]), nil
 }
 
-func DecodeUshort(buf *bytes.Buffer) (uint16, error) {
+// https://wiki.vg/Protocol#Type:Unsigned_Short
+func ReadUshort(buf *bytes.Buffer) (uint16, error) {
 	if buf.Len() < 2 {
-		return 0, errors.New("buffer has insufficient data")
+		return 0, errors.New("buffer has insufficient data to read ushort")
 	}
 
 	d := buf.Next(2)
 	return uint16(d[0])<<8 | uint16(d[1]), nil
 }
 
-func DecodeInt(buf *bytes.Buffer) (int32, error) {
+// https://wiki.vg/Protocol#Type:Int
+func ReadInt(buf *bytes.Buffer) (int32, error) {
 	if buf.Len() < 4 {
-		return 0, errors.New("buffer has insufficient data")
+		return 0, errors.New("buffer has insufficient data to read int")
 	}
 
 	d := buf.Next(4)
 	return int32(d[0])<<24 | int32(d[1])<<16 | int32(d[2])<<8 | int32(d[3]), nil
 }
 
-func DecodeLong(buf *bytes.Buffer) (int64, error) {
+// https://wiki.vg/Protocol#Type:Long
+func ReadLong(buf *bytes.Buffer) (int64, error) {
 	if buf.Len() < 8 {
-		return 0, errors.New("buffer has insufficient data")
+		return 0, errors.New("buffer has insufficient data to read long")
 	}
 
 	d := buf.Next(8)
@@ -76,9 +85,10 @@ func DecodeLong(buf *bytes.Buffer) (int64, error) {
 		int64(d[4])<<24 | int64(d[5])<<16 | int64(d[6])<<8 | int64(d[7]), nil
 }
 
-func DecodeFloat(buf *bytes.Buffer) (float32, error) {
+// https://wiki.vg/Protocol#Type:Float
+func ReadFloat(buf *bytes.Buffer) (float32, error) {
 	if buf.Len() < 4 {
-		return 0, errors.New("buffer has insufficient data")
+		return 0, errors.New("buffer has insufficient data to read float")
 	}
 
 	d := buf.Next(4)
@@ -86,9 +96,10 @@ func DecodeFloat(buf *bytes.Buffer) (float32, error) {
 	return math.Float32frombits(bits), nil
 }
 
-func DecodeDouble(buf *bytes.Buffer) (float64, error) {
+// https://wiki.vg/Protocol#Type:Double
+func ReadDouble(buf *bytes.Buffer) (float64, error) {
 	if buf.Len() < 8 {
-		return 0, errors.New("buffer has insufficient data")
+		return 0, errors.New("buffer has insufficient data to read double")
 	}
 
 	d := buf.Next(8)
@@ -97,14 +108,15 @@ func DecodeDouble(buf *bytes.Buffer) (float64, error) {
 	return math.Float64frombits(bits), nil
 }
 
-func DecodeString(buf *bytes.Buffer) (string, error) {
-	length, err := DecodeVarInt(buf)
+// https://wiki.vg/Protocol#Type:String
+func ReadString(buf *bytes.Buffer) (string, error) {
+	length, err := ReadVarInt(buf)
 	if err != nil {
 		return "", err
 	}
 
 	if length < 0 || length > 32767*3+3 {
-		return "", errors.New("invalid string length")
+		return "", errors.New("invalid string length to read string")
 	}
 
 	if buf.Len() < int(length) {
@@ -115,8 +127,32 @@ func DecodeString(buf *bytes.Buffer) (string, error) {
 	return string(bytes), nil
 }
 
-func DecodeIdentifier(buf *bytes.Buffer) (string, error) {
-	identifier, err := DecodeString(buf)
+// https://wiki.vg/Protocol#Type:JSON_Text_Component
+func ReadJSONTextComponent(buf *bytes.Buffer) (text.TextComponent, error) {
+	// Read the byte array
+	data, err := ReadByteArray(buf)
+	if err != nil {
+		return text.TextComponent{}, err
+	}
+
+	// Check the length limit
+	if len(data) > 262144*3+3 {
+		return text.TextComponent{}, errors.New("JSON text component exceeds maximum length")
+	}
+
+	// Unmarshal the JSON data
+	var comp text.TextComponent
+	err = json.Unmarshal(data, &comp)
+	if err != nil {
+		return text.TextComponent{}, err
+	}
+
+	return comp, nil
+}
+
+// https://wiki.vg/Protocol#Type:Identifier
+func ReadIdentifier(buf *bytes.Buffer) (string, error) {
+	identifier, err := ReadString(buf)
 	if err != nil {
 		return "", err
 	}
@@ -153,7 +189,8 @@ func isValidValue(value string) bool {
 	return match
 }
 
-func DecodeVarInt(buf *bytes.Buffer) (int32, error) {
+// https://wiki.vg/Protocol#Type:VarInt
+func ReadVarInt(buf *bytes.Buffer) (int32, error) {
 	var value int32
 	var position int32
 	var currentByte byte
@@ -162,7 +199,7 @@ func DecodeVarInt(buf *bytes.Buffer) (int32, error) {
 
 	for {
 		if buf.Len() == 0 {
-			return 0, errors.New("buffer has insufficient data")
+			return 0, errors.New("buffer has insufficient data to read varint")
 		}
 
 		currentByte = buf.Next(1)[0]
@@ -182,7 +219,8 @@ func DecodeVarInt(buf *bytes.Buffer) (int32, error) {
 	return value, nil
 }
 
-func DecodeVarLong(buf *bytes.Buffer) (int64, error) {
+// https://wiki.vg/Protocol#Type:VarLong
+func ReadVarLong(buf *bytes.Buffer) (int64, error) {
 	var value int64
 	var position int64
 	var currentByte byte
@@ -191,7 +229,7 @@ func DecodeVarLong(buf *bytes.Buffer) (int64, error) {
 
 	for {
 		if buf.Len() == 0 {
-			return 0, errors.New("buffer has insufficient data")
+			return 0, errors.New("buffer has insufficient data to read varlong")
 		}
 
 		currentByte = buf.Next(1)[0]
@@ -211,9 +249,10 @@ func DecodeVarLong(buf *bytes.Buffer) (int64, error) {
 	return value, nil
 }
 
-func DecodePosition(buf *bytes.Buffer) (x, y, z int32, err error) {
+// https://wiki.vg/Protocol#Type:Position
+func ReadPosition(buf *bytes.Buffer) (x, y, z int32, err error) {
 	if buf.Len() < 8 {
-		return 0, 0, 0, errors.New("buffer has insufficient data")
+		return 0, 0, 0, errors.New("buffer has insufficient data to read position")
 	}
 
 	var l int64
@@ -226,9 +265,10 @@ func DecodePosition(buf *bytes.Buffer) (x, y, z int32, err error) {
 	return x, y, z, nil
 }
 
-func DecodeUUID(buf *bytes.Buffer) (uuid.UUID, error) {
+// https://wiki.vg/Protocol#Type:UUID
+func ReadUUID(buf *bytes.Buffer) (uuid.UUID, error) {
 	if buf.Len() < 16 {
-		return uuid.UUID{}, errors.New("buffer has insufficient data")
+		return uuid.UUID{}, errors.New("buffer has insufficient data to read uuid")
 	}
 
 	u := make([]byte, 16)
@@ -240,8 +280,9 @@ func DecodeUUID(buf *bytes.Buffer) (uuid.UUID, error) {
 	return uuid.UUID(u), nil
 }
 
-func DecodeBitSet(buf *bytes.Buffer) ([]int64, error) {
-	length, err := DecodeVarInt(buf)
+// https://wiki.vg/Protocol#Type:BitSet
+func ReadBitSet(buf *bytes.Buffer) ([]int64, error) {
+	length, err := ReadVarInt(buf)
 	if err != nil {
 		return nil, err
 	}
@@ -254,13 +295,67 @@ func DecodeBitSet(buf *bytes.Buffer) ([]int64, error) {
 
 	for i := 0; i < int(length); i++ {
 		if buf.Len() < 8 {
-			return nil, errors.New("buffer has insufficient data")
+			return nil, errors.New("buffer has insufficient data to read bitset")
 		}
 
 		err = binary.Read(buf, binary.BigEndian, &data[i])
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	return data, nil
+}
+
+// https://wiki.vg/Protocol#Type:Fixed_BitSet
+func ReadFixedBitSet(buf *bytes.Buffer, bits int32) ([]byte, error) {
+	byteLength := int(math.Ceil(float64(bits) / 8))
+	if buf.Len() < byteLength {
+		return nil, errors.New("buffer has insufficient data to read fixed bitset")
+	}
+
+	data := make([]byte, byteLength)
+	_, err := buf.Read(data)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
+// https://wiki.vg/Protocol#Type:Byte_Array
+func ReadByteArray(buf *bytes.Buffer) ([]byte, error) {
+	length, err := ReadVarInt(buf)
+	if err != nil {
+		return nil, err
+	}
+
+	if length < 0 {
+		return nil, errors.New("invalid byte array length")
+	}
+
+	if buf.Len() < int(length) {
+		return nil, errors.New("buffer has insufficient data to read byte array")
+	}
+
+	data := make([]byte, length)
+	_, err = buf.Read(data)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
+func ReadFixedByteArray(buf *bytes.Buffer, length int) ([]byte, error) {
+	if buf.Len() < length {
+		return nil, errors.New("buffer has insufficient data to read fixed byte array")
+	}
+
+	data := make([]byte, length)
+	_, err := buf.Read(data)
+	if err != nil {
+		return nil, err
 	}
 
 	return data, nil

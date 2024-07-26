@@ -19,6 +19,9 @@ func NewServerConfig(ip_str string, port int, log logger.Logger) *ServerConfig {
 	defer log.Info().Msg("Created server config.")
 
 	ip := net.ParseIP(ip_str)
+	if ip == nil {
+		log.Error().Msgf("Invalid IP address: %s", ip_str)
+	}
 
 	return &ServerConfig{
 		ServerIP:   ip,
