@@ -8,18 +8,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
-type Logger interface {
-	Trace() *zerolog.Event
-	Debug() *zerolog.Event
-	Info() *zerolog.Event
-	Warn() *zerolog.Event
-	Error() *zerolog.Event
-	WithLevel(level zerolog.Level) *zerolog.Event
-
-	With() zerolog.Context
-}
-
-func NewLogger() Logger {
+func NewLogger() zerolog.Logger {
 	var output io.Writer = zerolog.ConsoleWriter{
 		Out:        os.Stdout,
 		TimeFormat: time.RFC3339,
@@ -36,5 +25,5 @@ func NewLogger() Logger {
 		Caller().
 		Logger()
 
-	return &logger
+	return logger
 }

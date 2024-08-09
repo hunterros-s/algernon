@@ -1,4 +1,4 @@
-package codec
+package io
 
 import (
 	"bytes"
@@ -16,7 +16,7 @@ func NewReader(buf []byte) *Reader {
 	return &Reader{buffer: bytes.NewBuffer(buf)}
 }
 
-func (r *Reader) Error() error {
+func (r *Reader) Err() error {
 	return r.err
 }
 

@@ -3,7 +3,7 @@ package config
 import (
 	"net"
 
-	"github.com/hunterros-s/algernon/logger"
+	"github.com/rs/zerolog"
 )
 
 type ServerConfig struct {
@@ -12,10 +12,10 @@ type ServerConfig struct {
 	TPS        int
 	Brand      string
 	MOTD       string
-	Logger     logger.Logger
+	Logger     zerolog.Logger
 }
 
-func NewServerConfig(ip_str string, port int, log logger.Logger) *ServerConfig {
+func NewServerConfig(ip_str string, port int, log zerolog.Logger) *ServerConfig {
 	defer log.Info().Msg("Created server config.")
 
 	ip := net.ParseIP(ip_str)

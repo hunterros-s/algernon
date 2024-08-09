@@ -1,0 +1,25 @@
+package serverbound
+
+import (
+	"github.com/hunterros-s/algernon/server/common"
+	"github.com/hunterros-s/algernon/server/protocol/io"
+	"github.com/hunterros-s/algernon/server/protocol/packet/packets/serverbound/handshaking"
+)
+
+type decoder func(*io.Reader) (common.ServerboundPacket, error)
+
+var serverbound_packet_index = map[common.State]map[uint32]decoder{
+	common.Handshaking: {
+		0x00: handshaking.DecodeHandshake,
+	},
+}
+
+func GetDecoder(state common.State, packetID uint32) (decoder, bool) {
+	stateMap, stateExists := serverbound_packet_index[state]
+	if !stateExists {
+		return nil, false
+	}
+
+	dec, exists := stateMap[packetID]
+	return dec, exists
+}
